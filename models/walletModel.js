@@ -1,4 +1,3 @@
-// models/walletModel.js
 const db = require('../config/db');
 
 exports.createWallet = (userId, name, network, xpub, mnemonic, callback) => {

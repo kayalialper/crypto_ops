@@ -1,4 +1,3 @@
-// middlewares/authMiddleware.js
 const dotenv = require('dotenv');
 
 dotenv.config();

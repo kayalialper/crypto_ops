@@ -1,4 +1,3 @@
-// utils/qrGenerator.js
 const QRCode = require('qr-image');
 
 exports.generateQRBase64 = (address) => {
