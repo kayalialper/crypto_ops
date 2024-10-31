@@ -166,3 +166,177 @@ exports.updateAddressPrivateKey = (address_id, privateKey, index, res) => {
         res.status(200).json({ privateKey: privateKey, mn_index: index });
     });
 };
+
+exports.sendTRX = async (req, res) => {
+    try {
+        const { fromAddress, toAddress, amount, privateKey } = req.body;
+
+        // Tatum API ayarları
+        const options = {
+            method: 'POST',
+            url: 'https://api.tatum.io/v3/tron/transaction',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                'x-api-key': process.env.TATUM_API_KEY
+            },
+            data: {
+                fromPrivateKey: privateKey,
+                to: toAddress,
+                amount: amount.toString() // Miktarı string olarak gönderiyoruz
+            }
+        };
+
+        // Tatum API üzerinden TRX gönderim işlemi
+        const response = await axios.request(options);
+        const transactionId = response.data.txId;
+
+        // İşlem başarılıysa veritabanına kaydetme ve status = 1 (başarılı) olarak ayarlama
+        db.query(
+            'INSERT INTO transactions (from_address, to_address, amount, tx_id, status) VALUES (?, ?, ?, ?, 1)',
+            [fromAddress, toAddress, amount, transactionId],
+            (err, result) => {
+                if (err) {
+                    console.error('İşlem veritabanına kaydedilemedi:', err);
+                }
+            }
+        );
+
+        // Başarılı yanıt döndür
+        res.status(200).json({
+            message: 'TRX transfer işlemi başarılı.',
+            transactionId: transactionId
+        });
+
+    } catch (error) {
+        // İşlem başarısızsa veritabanına kaydetme ve status = 2 (başarısız) olarak ayarlama
+        db.query(
+            'INSERT INTO transactions (from_address, to_address, amount, status) VALUES (?, ?, ?, 2)',
+            [fromAddress, toAddress, amount],
+            (err, result) => {
+                if (err) {
+                    console.error('Başarısız işlem veritabanına kaydedilemedi:', err);
+                }
+            }
+        );
+
+        res.status(500).json({ error: 'TRX gönderimi sırasında bir hata oluştu.', details: error.message });
+    }
+};
+
+exports.checkTransactionStatus = async (req, res) => {
+    try {
+        const { txId } = req.params;
+
+        const options = {
+            method: 'GET',
+            url: `https://api.tatum.io/v3/tron/transaction/${txId}`,
+            headers: {
+                accept: 'application/json',
+                'x-api-key': process.env.TATUM_API_KEY
+            }
+        };
+
+        const response = await axios.request(options);
+
+        res.status(200).json({
+            message: 'İşlem durumu başarıyla sorgulandı.',
+            transactionDetails: response.data
+        });
+
+        if (response.data.confirmed) {
+            db.query(
+                'UPDATE transactions SET status = 1 WHERE tx_id = ?',
+                [txId],
+                (err, result) => {
+                    if (err) {
+                        console.error('İşlem durumu güncellenemedi:', err);
+                    }
+                }
+            );
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'İşlem durumu sorgulama sırasında bir hata oluştu.', details: error.message });
+    }
+};
+
+exports.freezeBalance = async (req, res) => {
+    try {
+        const { fromAddress, privateKey, amount, resource } = req.body;
+
+        const options = {
+            method: 'POST',
+            url: 'https://api.tatum.io/v3/tron/freeze',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                'x-api-key': process.env.TATUM_API_KEY
+            },
+            data: {
+                fromPrivateKey: privateKey,
+                resource: resource,
+                amount: amount.toString()
+            }
+        };
+
+        const response = await axios.request(options);
+
+        // Dondurma işlemi başarılı olduğunda ilgili kolonu güncelle
+        const columnToUpdate = resource.toLowerCase(); // 'bandwidth' veya 'energy'
+        db.query(
+            `UPDATE addresses SET ${columnToUpdate} = ${columnToUpdate} + ? WHERE address = ?`,
+            [amount, fromAddress],
+            (err) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Dondurma işlemi sırasında veritabanı güncellemesi başarısız oldu.' });
+                }
+                res.status(200).json({
+                    message: 'TRX dondurma işlemi başarılı.',
+                    details: response.data
+                });
+            }
+        );
+    } catch (error) {
+        res.status(500).json({ error: 'TRX dondurma işlemi sırasında bir hata oluştu.', details: error.message });
+    }
+};
+
+exports.unfreezeBalance = async (req, res) => {
+    try {
+        const { fromAddress, privateKey, resource } = req.body;
+
+        const options = {
+            method: 'POST',
+            url: 'https://api.tatum.io/v3/tron/unfreeze',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                'x-api-key': process.env.TATUM_API_KEY
+            },
+            data: {
+                fromPrivateKey: privateKey,
+                resource: resource
+            }
+        };
+
+        const response = await axios.request(options);
+
+        // Çözme işlemi başarılı olduğunda ilgili kolonu sıfırla
+        const columnToUpdate = resource.toLowerCase(); // 'bandwidth' veya 'energy'
+        db.query(
+            `UPDATE addresses SET ${columnToUpdate} = 0 WHERE address = ?`,
+            [fromAddress],
+            (err) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Çözme işlemi sırasında veritabanı güncellemesi başarısız oldu.' });
+                }
+                res.status(200).json({
+                    message: 'Dondurulmuş TRX çözme işlemi başarılı.',
+                    details: response.data
+                });
+            }
+        );
+    } catch (error) {
+        res.status(500).json({ error: 'Dondurulmuş TRX çözme işlemi sırasında bir hata oluştu.', details: error.message });
+    }
+};
