@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡️ Crypto OPS ⚡️</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100 flex flex-col min-h-screen">
+    <header class="bg-blue-800 text-white py-4">
+        <div class="container mx-auto text-center font-bold text-3xl">
+            Crypto OPS
+        </div>
+    </header>
+
+    <div class="container mx-auto my-10 px-4">
+        <div id="formContainer" class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg mx-auto">
+            <div id="step1" class="step">
+                <h2 class="text-2xl font-bold mb-6">İşleme Başla</h2>
+                <p>İşlem adımlarına başlamak için ileri tuşuna tıklayın.</p>
+                <button onclick="nextStep()" class="mt-6 bg-blue-600 text-white py-2 px-4 rounded">İleri</button>
+            </div>
+
+            <div id="step2" class="step hidden">
+                <h2 class="text-2xl font-bold mb-6">Tutar Girin</h2>
+                <input type="number" id="amount" class="w-full p-3 border border-gray-300 rounded mb-6"
+                    placeholder="Yatırmak istediğiniz tutarı girin">
+                <div class="flex justify-between">
+                    <button onclick="previousStep()" class="bg-gray-400 text-white py-2 px-4 rounded">Geri</button>
+                    <button onclick="startProcess()" class="bg-blue-600 text-white py-2 px-4 rounded">İleri</button>
+                </div>
+            </div>
+
+            <div id="step3" class="step hidden">
+                <h2 class="text-2xl font-bold mb-6">Cüzdan Adresi</h2>
+                <div id="qrCodeContainer" class="mb-4">
+                    <!-- QR kod buraya eklenecek -->
+                </div>
+                <p id="walletAddress" class="text-lg font-mono text-gray-700"></p>
+                <p id="network" class="text-sm text-gray-500"></p>
+                <div class="flex justify-between mt-6">
+                    <button onclick="previousStep()" class="bg-gray-400 text-white py-2 px-4 rounded">Geri</button>
+                    <button onclick="nextStep()" class="bg-blue-600 text-white py-2 px-4 rounded">İleri</button>
+                </div>
+            </div>
+
+            <div id="step4" class="step hidden">
+                <h2 class="text-2xl font-bold mb-6">Yatırım İşlemi Kaydedildi</h2>
+                <p>İşlem sonucunu bu adımda otomatik olarak göreceksiniz.</p>
+                <button onclick="previousStep()" class="mt-6 bg-gray-400 text-white py-2 px-4 rounded">Geri</button>
+            </div>
+        </div>
+
+        <!-- Cryptocurrency Converter -->
+        <div class="bg-green-50 p-8 rounded-lg shadow-md w-full max-w-lg mx-auto mt-8 text-center">
+            <h2 class="text-3xl font-bold mb-4 text-green-700">Çevirici</h2>
+            <p class="text-gray-700 mb-6">Coin ve para birimi seçimi yapın</p>
+
+            <div class="flex items-center gap-4 justify-center">
+                <input type="number" id="convertAmount" value="1.00"
+                    class="w-1/3 p-3 border border-green-300 rounded text-center text-xl font-semibold" step="0.01"
+                    onchange="fetchConversionRate()" oninput="fetchConversionRate()">
+
+                <select id="coinSelect"
+                    class="w-1/4 p-3 border border-green-300 rounded text-xl font-semibold text-yellow-500"
+                    onchange="fetchConversionRate()">
+                    <option value="TRX">TRX</option>
+                </select>
+
+                <span class="text-green-600 text-2xl cursor-pointer" onclick="swapCurrencies()">&#x21c4;</span>
+
+                <div class="w-1/3 p-3 border border-green-300 rounded text-center text-2xl font-bold text-green-800"
+                    id="conversionResult">
+                    <span id="conversionValue">0.00</span>
+                </div>
+
+                <select id="currencySelect"
+                    class="w-1/4 p-3 border border-green-300 rounded text-xl font-semibold text-green-700"
+                    onchange="fetchConversionRate()">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="TRY">TRY</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        //sayfa yüklendiğinde id="amount" value değeri 1.00 olacak. coinSelect'in value'si TRX olacak. currencySelect'in value'si TRY olacak. http://localhost:4563/api/convert/TRX/TRY adresine GET isteği atıp response'taki "rate": 5.6829 değerini amount * rate ile çarpıp conversionValue'ya yazdıracağız.
+
+        // Güncellenmiş fetchConversionRate fonksiyonu
+        async function fetchConversionRate(coin, currency) {
+            const amount = parseFloat(document.getElementById("convertAmount").value);
+
+            if (isNaN(amount) || amount <= 0) {
+                console.error("Geçersiz miktar girildi.");
+                document.getElementById("conversionValue").innerHTML = "0.00";
+                return;
+            }
+
+            try {
+                // API'den dönüşüm oranını almak için istek atıyoruz
+                const conversionResponse = await fetch(`/api/convert/${coin}/${currency}`, {
+                    method: "GET"
+                });
+
+                if (!conversionResponse.ok) {
+                    console.error("Conversion rate fetch error:", conversionResponse.statusText);
+                    return;
+                }
+
+                const conversionData = await conversionResponse.json();
+                const rate = conversionData.rate;
+                console.log("Conversion rate:", rate);
+
+                // Miktar ve oranı çarpıyoruz ve sonucu conversionValue span'ine yazdırıyoruz
+                const convertedAmount = (amount * rate).toFixed(2);
+                console.log('amount:', amount, 'rate:', rate, 'convertedAmount:', convertedAmount);
+
+                document.getElementById("conversionValue").innerHTML = convertedAmount;
+            } catch (error) {
+                console.error("Dönüştürme hatası:", error);
+                document.getElementById("conversionValue").innerHTML = "Hata";
+            }
+        }
+
+        function swapCurrencies() {
+            // Select elementlerini alıyoruz
+            const coinSelect = document.getElementById("coinSelect");
+            const currencySelect = document.getElementById("currencySelect");
+
+            // Select içeriğini geçici bir değişkende saklayıp yer değiştiriyoruz
+            const tempInnerHTML = coinSelect.innerHTML;
+            coinSelect.innerHTML = currencySelect.innerHTML;
+            currencySelect.innerHTML = tempInnerHTML;
+
+            // Yer değişimi sonrasında varsayılan değerleri ayarlıyoruz
+            coinSelect.value = "TRX";
+            currencySelect.value = "TRY";
+
+            // Güncellenmiş değerleri fetchConversionRate'e geçiriyoruz
+            fetchConversionRate();
+        }
+
+        // Sayfa yüklendiğinde ilk dönüşüm oranını almak için fonksiyonu çağırıyoruz
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchConversionRate();
+        });
+
+        // Select elementlerinin değişikliklerine tepki olarak fetchConversionRate'i çağırıyoruz
+        document.getElementById("coinSelect").addEventListener("change", fetchConversionRate);
+        document.getElementById("currencySelect").addEventListener("change", fetchConversionRate);
+        document.getElementById("convertAmount").addEventListener("input", fetchConversionRate);
+
+        // fetchConversionRate fonksiyonu
+        async function fetchConversionRate() {
+            const amount = document.getElementById("convertAmount").value;
+            const coin = document.getElementById("coinSelect").value;
+            const currency = document.getElementById("currencySelect").value;
+
+            try {
+                const conversionResponse = await fetch(`/api/convert/${coin}/${currency}`, {
+                    method: "GET"
+                });
+
+                if (!conversionResponse.ok) {
+                    console.error("Conversion rate fetch error:", conversionResponse.statusText);
+                    return;
+                }
+
+                const conversionData = await conversionResponse.json();
+                const rate = conversionData.rate;
+                const convertedAmount = (amount * rate).toFixed(2);
+
+                document.getElementById("conversionValue").innerText = convertedAmount;
+            } catch (error) {
+                console.error("Conversion fetch error:", error);
+            }
+        }
+
+        const generateUniqueText = () => {
+            const timestamp = Date.now().toString(); // milisaniye cinsinden zaman damgası
+            const randomHash = Math.random().toString(36).substring(2, 8); // kısa bir hash oluşturur
+            return `TRXw_${timestamp}_${randomHash}`;
+        };
+
+        let currentStep = 1;
+        let walletId = null;
+        let addressId = null;
+        let text = generateUniqueText();
+
+
+
+        function showStep(step) {
+            document.querySelectorAll(".step").forEach(step => step.classList.add("hidden"));
+            document.getElementById(`step${step}`).classList.remove("hidden");
+        }
+
+        function nextStep() {
+            if (currentStep < 4) {
+                currentStep++;
+                showStep(currentStep);
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+
+        async function checkNetworkStatus() {
+            try {
+                const requestKey = "u123u5no6pmk23ki"; // Frontend kullanıcıları için requestKey
+                const networkStatusResponse = await fetch(`/api/tron/block?requestKey=${requestKey}`, {
+                    method: "GET"
+                });
+
+                if (!networkStatusResponse.ok) {
+                    throw new Error("TRON ağına bağlanılamadı veya bir sorun mevcut.");
+                }
+
+                const networkStatus = await networkStatusResponse.json();
+
+                if (networkStatus.error) {
+                    alert("Ağ sağlıksız. Lütfen daha sonra tekrar deneyin.");
+                    return false;
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error("TRON ağı kontrol hatası:", error);
+                alert("Ağ kontrolü sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
+                return false;
+            }
+        }
+
+        async function createWallet() {
+            try {
+                const name = text; // Her işlem için benzersiz bir text olarak kullanıyoruz
+                const walletResponse = await fetch("/api/createwallet", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        userId: 6,
+                        name: name,
+                        network: "tron",
+                        requestKey: "y852735238h23ub5"
+                    })
+                });
+
+                if (!walletResponse.ok) {
+                    throw new Error("Cüzdan oluşturulurken bir sorun oluştu.");
+                }
+
+                const walletData = await walletResponse.json();
+                walletId = walletData.walletId;
+                return walletData;
+
+            } catch (error) {
+                console.error("Cüzdan oluşturma hatası:", error);
+                alert("Cüzdan oluşturulurken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
+                return null;
+            }
+        }
+
+        async function createAddress(walletId) {
+            try {
+                const name = text; // Her işlem için benzersiz bir isim olarak kullanıyoruz
+                const addressResponse = await fetch(`/api/createAddressOnWallet/${walletId}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: 6,
+                        name: name,
+                        index: 0,
+                        requestKey: "y852735238h23ub5"
+                    })
+                });
+
+                if (!addressResponse.ok) {
+                    throw new Error("Adres oluşturulurken bir sorun oluştu.");
+                }
+
+                const addressData = await addressResponse.json();
+                addressId = addressData.addressId;
+                return addressData;
+
+            } catch (error) {
+                console.error("Adres oluşturma hatası:", error);
+                alert("Adres oluşturulurken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
+                return null;
+            }
+        }
+
+        async function getPrivateKey(walletId, addressId) {
+            try {
+                const privateKeyResponse = await fetch("/api/getPrivateKey", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        wallet_id: walletId,
+                        user_id: 6,
+                        index: 0,
+                        address_id: addressId,
+                        requestKey: "y852735238h23ub5"
+                    })
+                });
+
+                if (!privateKeyResponse.ok) {
+                    throw new Error("Private key alınırken bir sorun oluştu.");
+                }
+
+                return await privateKeyResponse.json();
+
+            } catch (error) {
+                console.error("Private key alma hatası:", error);
+                alert("Private key alınırken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
+                return null;
+            }
+        }
+
+        async function startProcess() {
+            text = generateUniqueText();
+            const isNetworkHealthy = await checkNetworkStatus();
+            if (!isNetworkHealthy) return;
+
+            const walletData = await createWallet();
+            if (!walletData) return;
+
+            const addressData = await createAddress(walletId);
+            if (!addressData) return;
+
+            const privateKeyData = await getPrivateKey(walletId, addressId);
+            if (!privateKeyData) return;
+
+            document.getElementById("qrCodeContainer").innerHTML = `<img src="data:image/png;base64,${addressData.qrCode}" alt="QR Code" class="w-32 h-32 mx-auto">`;
+            document.getElementById("walletAddress").innerText = addressData.address;
+            document.getElementById("network").innerText = "Tron";
+
+            nextStep();
+        }
+
+        showStep(currentStep);
+    </script>
+</body>
+
+</html>

@@ -32,21 +32,21 @@ exports.createWallet = async (req, res) => {
                 walletModel.createAddress(walletId, address_name, address, qrCodeBase64, (err, addressId) => {
                     if (err) throw err;
 
-                    res.status(201).json({
+                    res.status(201).json(req.isDeveloper ? {
                         walletId,
                         addressId,
                         mnemonic,
                         xpub,
                         address,
                         qrCode: qrCodeBase64
-                    });
+                    } : { walletId, addressId, address, qrCode: qrCodeBase64 });
                 });
             } else {
-                res.status(201).json({
+                res.status(201).json(req.isDeveloper ? {
                     walletId,
                     mnemonic,
                     xpub
-                });
+                } : { walletId });
             }
         });
     } catch (error) {
@@ -64,10 +64,6 @@ exports.createAddressOnWallet = async (req, res) => {
                 return res.status(404).json({ error: 'Wallet bulunamadı' });
             }
 
-            console.log("Request user_id:", user_id);
-            console.log("Wallet user_id:", wallet.user_id);
-
-            // Kullanıcı ID'si kontrolü
             if (wallet.user_id != user_id) {
                 return res.status(403).json({ error: 'Yetkisiz işlem' });
             }
@@ -92,14 +88,14 @@ exports.createAddressOnWallet = async (req, res) => {
                     return res.status(500).json({ error: 'Adres kaydedilemedi' });
                 }
 
-                res.status(201).json({
+                res.status(201).json(req.isDeveloper ? {
                     wallet_id,
                     addressId,
                     index,
                     name,
                     address,
                     qrCode: qrCodeBase64
-                });
+                } : { wallet_id, addressId, name, address, qrCode: qrCodeBase64 });
             });
         });
     } catch (error) {
@@ -116,7 +112,6 @@ exports.getPrivateKey = async (req, res) => {
                 return res.status(404).json({ error: 'Wallet bulunamadı' });
             }
 
-            // Kullanıcı ID'si kontrolü
             if (wallet.user_id !== user_id) {
                 return res.status(403).json({ error: 'Yetkisiz işlem' });
             }
@@ -149,7 +144,10 @@ exports.getPrivateKey = async (req, res) => {
                 const response = await axios.request(options);
                 const privateKey = response.data.key;
 
-                this.updateAddressPrivateKey(address_id, privateKey, index, res);
+                res.status(200).json(req.isDeveloper ? {
+                    privateKey: privateKey,
+                    mn_index: index
+                } : { success: true });
             });
         });
     } catch (error) {

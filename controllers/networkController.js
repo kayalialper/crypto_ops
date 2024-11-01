@@ -15,7 +15,10 @@ exports.getCurrentBlock = async (req, res) => {
         const response = await axios.request(options);
         const { hash, blockNumber } = response.data;
 
-        // Veritabanına kaydet
+        if (!hash || !blockNumber) {
+            return res.status(500).json({ error: 'Ağ sağlıksız' });
+        }
+
         db.query(
             'INSERT INTO tron_network_status (block_hash, block_number) VALUES (?, ?)',
             [hash, blockNumber],
@@ -24,7 +27,10 @@ exports.getCurrentBlock = async (req, res) => {
                     return res.status(500).json({ error: 'Blok bilgisi kaydedilemedi' });
                 }
 
-                res.status(200).json({ message: 'Güncel blok bilgisi kaydedildi', data: response.data });
+                res.status(200).json({
+                    message: 'Güncel blok bilgisi kaydedildi',
+                    data: req.isDeveloper ? response.data : { blockNumber }
+                });
             }
         );
     } catch (error) {
@@ -47,10 +53,8 @@ exports.getTronAccountByAddress = async (req, res) => {
 
         const response = await axios.request(options);
 
-        // Adres bilgisi başarıyla alındığında yanıt döndür
-        res.status(200).json(response.data);
+        res.status(200).json(req.isDeveloper ? response.data : { balance: response.data.balance });
     } catch (error) {
-        // Hata durumunda anlamlı bir yanıt döndür
         if (error.response && error.response.status === 403) {
             res.status(404).json({ error: 'Tron hesabı bulunamadı veya etkin değil' });
         } else {
